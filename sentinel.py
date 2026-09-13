@@ -1,99 +1,60 @@
 """
 SENTINEL
-Security Log Intelligence Platform
+Security Intelligence Platform
 
-A beginner-friendly cybersecurity project that analyzes
-login activity and detects suspicious behavior.
+Sentinel reads login events from a SQLite database
+and detects suspicious authentication activity.
 """
 
+import sqlite3
 from collections import Counter
 
 
 # ============================================================
-# SAMPLE SECURITY LOGS
+# CONFIGURATION
 # ============================================================
 
-logs = [
-    {
-        "time": "10:01",
-        "user": "alice",
-        "ip": "192.168.1.10",
-        "event": "SUCCESS"
-    },
-    {
-        "time": "10:02",
-        "user": "bob",
-        "ip": "192.168.1.15",
-        "event": "SUCCESS"
-    },
-    {
-        "time": "10:03",
-        "user": "admin",
-        "ip": "185.44.21.91",
-        "event": "FAILED"
-    },
-    {
-        "time": "10:03",
-        "user": "admin",
-        "ip": "185.44.21.91",
-        "event": "FAILED"
-    },
-    {
-        "time": "10:03",
-        "user": "admin",
-        "ip": "185.44.21.91",
-        "event": "FAILED"
-    },
-    {
-        "time": "10:03",
-        "user": "admin",
-        "ip": "185.44.21.91",
-        "event": "FAILED"
-    },
-    {
-        "time": "10:03",
-        "user": "admin",
-        "ip": "185.44.21.91",
-        "event": "FAILED"
-    },
-    {
-        "time": "10:04",
-        "user": "charlie",
-        "ip": "192.168.1.20",
-        "event": "SUCCESS"
-    },
-    {
-        "time": "10:05",
-        "user": "admin",
-        "ip": "185.44.21.91",
-        "event": "FAILED"
-    },
-    {
-        "time": "10:05",
-        "user": "admin",
-        "ip": "185.44.21.91",
-        "event": "FAILED"
-    },
-    {
-        "time": "10:05",
-        "user": "admin",
-        "ip": "185.44.21.91",
-        "event": "FAILED"
-    },
-    {
-        "time": "10:06",
-        "user": "alice",
-        "ip": "192.168.1.10",
-        "event": "SUCCESS"
-    }
-]
+DATABASE_NAME = "sentinel.db"
+
+# Number of failed attempts required to trigger an alert
+FAILED_LOGIN_THRESHOLD = 5
+
+
+# ============================================================
+# DATABASE FUNCTIONS
+# ============================================================
+
+def get_events():
+    """
+    Retrieve all login events from the Sentinel database.
+    """
+
+    connection = sqlite3.connect(DATABASE_NAME)
+
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        SELECT time, username, ip_address, event
+        FROM login_events
+    """)
+
+    events = cursor.fetchall()
+
+    connection.close()
+
+    return events
 
 
 # ============================================================
 # SECURITY ANALYSIS
 # ============================================================
 
-def analyze_security(logs):
+def analyze_events(events):
+    """
+    Analyze login events and identify suspicious activity.
+    """
+
+    total_events = len(events)
 
     successful_logins = 0
     failed_logins = 0
@@ -102,26 +63,36 @@ def analyze_security(logs):
 
     users = set()
 
-    for log in logs:
+    # Examine every event
+    for event in events:
 
-        users.add(log["user"])
+        time = event[0]
+        username = event[1]
+        ip_address = event[2]
+        event_type = event[3]
 
-        if log["event"] == "SUCCESS":
+        # Keep track of unique users
+        users.add(username)
+
+        if event_type == "SUCCESS":
+
             successful_logins += 1
 
-        elif log["event"] == "FAILED":
-            failed_logins += 1
-            failed_ips.append(log["ip"])
+        elif event_type == "FAILED":
 
-    # Count failed attempts from each IP
+            failed_logins += 1
+
+            failed_ips.append(ip_address)
+
+    # Count failed attempts for each IP
     ip_counts = Counter(failed_ips)
 
     suspicious_ips = []
 
-    # Five or more failures = suspicious
+    # Check each IP against our security threshold
     for ip, count in ip_counts.items():
 
-        if count >= 5:
+        if count >= FAILED_LOGIN_THRESHOLD:
 
             suspicious_ips.append(
                 {
@@ -133,7 +104,7 @@ def analyze_security(logs):
             )
 
     return {
-        "total_logs": len(logs),
+        "total_events": total_events,
         "successful_logins": successful_logins,
         "failed_logins": failed_logins,
         "unique_users": len(users),
@@ -146,21 +117,41 @@ def analyze_security(logs):
 # ============================================================
 
 def display_report(results):
+    """
+    Display the Sentinel security report.
+    """
 
     print()
+
     print("=" * 60)
-    print("              SENTINEL SECURITY")
-    print("             INTELLIGENCE REPORT")
+    print("              SENTINEL")
+    print("        SECURITY INTELLIGENCE REPORT")
     print("=" * 60)
 
     print()
 
-    print(f"Total Events:       {results['total_logs']}")
-    print(f"Successful Logins:  {results['successful_logins']}")
-    print(f"Failed Logins:      {results['failed_logins']}")
-    print(f"Unique Users:       {results['unique_users']}")
+    print(
+        f"Total Events:       "
+        f"{results['total_events']}"
+    )
+
+    print(
+        f"Successful Logins:  "
+        f"{results['successful_logins']}"
+    )
+
+    print(
+        f"Failed Logins:      "
+        f"{results['failed_logins']}"
+    )
+
+    print(
+        f"Unique Users:       "
+        f"{results['unique_users']}"
+    )
 
     print()
+
     print("-" * 60)
     print("SECURITY ALERTS")
     print("-" * 60)
@@ -174,12 +165,31 @@ def display_report(results):
         for alert in results["suspicious_ips"]:
 
             print()
+
             print("🚨 HIGH RISK ALERT")
-            print(f"IP Address: {alert['ip']}")
-            print(f"Failed Attempts: {alert['attempts']}")
-            print(f"Reason: {alert['reason']}")
+
+            print(
+                f"IP Address: "
+                f"{alert['ip']}"
+            )
+
+            print(
+                f"Failed Attempts: "
+                f"{alert['attempts']}"
+            )
+
+            print(
+                f"Severity: "
+                f"{alert['severity']}"
+            )
+
+            print(
+                f"Reason: "
+                f"{alert['reason']}"
+            )
 
     print()
+
     print("=" * 60)
 
 
@@ -190,12 +200,39 @@ def display_report(results):
 def main():
 
     print()
-    print("Starting Sentinel Security Analysis...")
+    print("Connecting to Sentinel database...")
 
-    results = analyze_security(logs)
+    try:
 
-    display_report(results)
+        events = get_events()
 
+        print(
+            f"Loaded {len(events)} "
+            f"security events."
+        )
+
+        print("Analyzing activity...")
+
+        results = analyze_events(events)
+
+        display_report(results)
+
+    except sqlite3.OperationalError:
+
+        print()
+        print("ERROR")
+        print("-" * 60)
+        print("Sentinel could not find the database.")
+        print()
+        print("Run database.py first:")
+        print()
+        print("python3 database.py")
+        print("-" * 60)
+
+
+# ============================================================
+# START SENTINEL
+# ============================================================
 
 if __name__ == "__main__":
     main()
