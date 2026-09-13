@@ -25,3 +25,13 @@ sentinel-security-platform/
 ├── README.md
 ├── requirements.txt
 └── .gitignore
+app/analyzer.py
+def parse_log(line):
+    parts = line.split()
+
+    print(parts)
+
+
+log = "2026-09-13 10:01:22 INFO login_success user=alice ip=192.168.1.10"
+
+parse_log(log)
